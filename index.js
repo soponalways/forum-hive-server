@@ -3,12 +3,22 @@ const express = require('express');
 const cors = require('cors');
 const { MongoClient, ServerApiVersion } = require('mongodb');
 require('dotenv').config();
+const jwt = require('jsonwebtoken');
+const cookieParser = require('cookie-parser');
 
 // ✅ Setup Express
 const app = express();
 const port = process.env.PORT || 5000;
-app.use(cors());
+
+// ✅ Middleware
+// Enable CORS for specific origins and methods
+app.use(cors({
+    origin: ['http://localhost:5173', 'https://forum-hive-server.vercel.app'],
+    credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'],
+}));
 app.use(express.json());
+app.use(cookieParser());
 
 // ✅ MongoDB Connection
 const uri = process.env.MONGODB_URI;
@@ -30,6 +40,31 @@ async function run() {
         userCollection = db.collection("users");
 
         console.log("✅ MongoDB connected");
+
+        // 👉 Token Generation
+        app.post('/auth/set-cookie', (req, res) => {
+            const user = req.body; 
+            const token = jwt.sign(user, process.env.JWT_SECRET, { expiresIn: '7d' });
+
+            res
+                .cookie('jwtToken', token, {
+                    httpOnly: true,
+                    secure: process.env.NODE_ENV === 'production', // true on live
+                    sameSite: 'strict',
+                    maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
+                })
+                .send({ success: true });
+        });
+
+        app.post('/auth/clear-cookies', (req, res) => {
+            res
+                .clearCookie('jwtToken', {
+                    httpOnly: true,
+                    secure: process.env.NODE_ENV === 'production',
+                    sameSite: 'strict',
+                })
+                .send({ success: true });
+        });
 
         // 👉 Check if username exists
         app.get('/users/check-username/:username', async (req, res) => {
