@@ -144,6 +144,19 @@ async function run() {
             res.send({ count });
         });
 
+        // GET /posts/user/:email
+        app.get('/posts/user/:email' , verifyJWT , async (req, res) => {
+            const decodedEmail = req.decoded.email;
+            const email = req.params.email;
+
+            if (decodedEmail !== email) {
+                return res.status(403).send({ message: 'Forbidden: email mismatch' });
+            }
+
+            const posts = await postCollection.find({ authorEmail: email }).toArray();
+            res.send(posts);
+        })
+
         // POST /posts
         app.post('/posts', verifyJWT, async (req, res) => {
             const postData = req.body;
@@ -171,6 +184,10 @@ async function run() {
             }          
 
             const result = await postCollection.insertOne(postData);
+            const updatedDoc = {
+                $inc : {postLimit: -1}
+            }
+            await userCollection.updateOne({ email: decodedEmail }, updatedDoc);
             res.send(result);
         });
 
