@@ -20,6 +20,21 @@ app.use(cors({
 app.use(express.json());
 app.use(cookieParser());
 
+// Coustome middleware 
+const verifyJWT = (req, res, next) => {
+    const token = req.cookies['jwtToken'];
+    console.log('JWT Token:', token);
+    if (!token) return res.status(401).send({ message: 'Unauthorized access' });
+
+    jwt.verify(token, process.env.JWT_SECRET, (err, decoded) => {
+        if (err) return res.status(403).send({ message: 'Forbidden' });
+        req.decoded = decoded;
+        console.log('Decoded JWT:', decoded);
+        next();
+    });
+};
+
+
 // ✅ MongoDB Connection
 const uri = process.env.MONGODB_URI;
 const client = new MongoClient(uri, {
@@ -32,12 +47,14 @@ const client = new MongoClient(uri, {
 
 // ✅ Declare userCollection globally
 let userCollection;
+let postCollection;
 
 async function run() {
     try {
         await client.connect();
         const db = client.db("forumHiveDB");
         userCollection = db.collection("users");
+        postCollection = db.collection("posts");
 
         console.log("✅ MongoDB connected");
 
@@ -111,6 +128,22 @@ async function run() {
                 }
             }
         });
+
+        // Post realted route 
+
+        // GET /posts/user/:email/count
+        app.get('/posts/user/:email/count', verifyJWT, async (req, res) => {
+            const decodedEmail = req.decoded.email;
+            const email = req.params.email;
+
+            if (decodedEmail !== email) {
+                return res.status(403).send({ message: 'Forbidden: email mismatch' });
+            }
+
+            const count = await postCollection.countDocuments({ authorEmail: email });
+            res.send({ count });
+        });
+
 
         // Root route
         app.get('/', (req, res) => {
