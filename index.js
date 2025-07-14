@@ -1,7 +1,7 @@
 // ✅ Load Dependencies
 const express = require('express');
 const cors = require('cors');
-const { MongoClient, ServerApiVersion } = require('mongodb');
+const { MongoClient, ServerApiVersion, ObjectId } = require('mongodb');
 require('dotenv').config();
 const jwt = require('jsonwebtoken');
 const cookieParser = require('cookie-parser');
@@ -191,6 +191,25 @@ async function run() {
             res.send(result);
         });
 
+        // DELETE /posts/:id
+        app.delete('/posts/:id', verifyJWT, async (req, res) => {
+            const postId = req.params.id;
+            const decodedEmail = req.decoded.email;
+
+            const query = { _id: new ObjectId(postId) }; 
+            const post = await postCollection.findOne(query);
+            if (!post) {
+                return res.status(404).send({ message: 'Post not found' });
+            }
+
+            if (post.authorEmail !== decodedEmail) {
+                return res.status(403).send({ message: 'Forbidden: email mismatch' });
+            }
+
+            const result =  await postCollection.deleteOne({ _id: new ObjectId(postId) });
+            await userCollection.updateOne({ email: decodedEmail }, { $inc: { postLimit: 1 } });
+            res.send({ success: true, message: 'Post deleted successfully', ...result });
+        });
 
         // Root route
         app.get('/', (req, res) => {
