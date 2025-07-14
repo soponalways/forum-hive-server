@@ -144,6 +144,36 @@ async function run() {
             res.send({ count });
         });
 
+        // POST /posts
+        app.post('/posts', verifyJWT, async (req, res) => {
+            const postData = req.body;
+            const decodedEmail = req.decoded.email;
+
+            if (decodedEmail !== postData.authorEmail) {
+                return res.status(403).send({ message: 'Forbidden: email mismatch' });
+            }
+
+            // Check post limit
+            const postCount = await postCollection.countDocuments({ authorEmail: decodedEmail });
+            
+            const member = await userCollection.findOne({ email: decodedEmail });
+            if (!member) {
+                return res.status(403).send({ message: 'Forbidden: user not found' });
+            }
+            if (member.memberShip === 'member') {
+                if (postCount > 10) {
+                    return res.status(403).send({ message: 'Post limit exceeded' });
+                }
+            } else if (member.memberShip === 'non-member') {
+                if (postCount > 5) {
+                    return res.status(403).send({ message: 'Post limit exceeded' });
+                }
+            }          
+
+            const result = await postCollection.insertOne(postData);
+            res.send(result);
+        });
+
 
         // Root route
         app.get('/', (req, res) => {
