@@ -13,18 +13,18 @@ const port = process.env.PORT || 5000;
 // ✅ Middleware
 // Enable CORS for specific origins and methods
 app.use(cors({
-    origin: ['http://localhost:5173', 'https://forum-hive-server.vercel.app'],
+    origin: ['http://localhost:5173', 'https://forumhive.web.app'],
     credentials: true,
-    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'],
+    // methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'],
 }));
 app.use(express.json());
 app.use(cookieParser());
 
 // Coustome middleware 
 const verifyJWT = (req, res, next) => {
-    const token = req.cookies['jwtToken'];
+    const token = req.cookies.jwtToken
     console.log('JWT Token:', token);
-    if (!token) return res.status(401).send({ message: 'Unauthorized access' });
+    if (!token) return res.status(401).send({ message: 'Unauthorized access token not found'  });
 
     jwt.verify(token, process.env.JWT_SECRET, (err, decoded) => {
         if (err) return res.status(403).send({ message: 'Forbidden' });
@@ -51,7 +51,7 @@ let postCollection;
 
 async function run() {
     try {
-        await client.connect();
+        // await client.connect();
         const db = client.db("forumHiveDB");
         userCollection = db.collection("users");
         postCollection = db.collection("posts");
@@ -88,6 +88,28 @@ async function run() {
             const username = req.params.username;
             const user = await userCollection.findOne({ username });
             res.send({ exists: !!user });
+        });
+
+        // Get all Posts
+        app.get('/posts', async (req, res) => {
+            const posts = await postCollection.find().toArray();
+            res.send(posts || []);
+        });
+        
+        app.get('/posts/search', async (req, res) => {
+            const { tag } = req.query;
+            const tagSpecial = tag.trim(); 
+            try {
+                const posts = await postCollection
+                    .find({ tag: { $regex: new RegExp(`^${tagSpecial}$`, 'i') } })
+                    .sort({ createdAt: -1 })
+                    .toArray();
+
+                res.json(posts);
+            } catch (error) {
+                console.error('Search Error:', error);
+                res.status(500).json({ message: 'Failed to fetch search results' });
+            }
         });
 
         // 👉 Save new user
