@@ -23,13 +23,11 @@ app.use(cookieParser());
 // Coustome middleware 
 const verifyJWT = (req, res, next) => {
     const token = req.cookies.jwtToken
-    console.log('JWT Token:', token);
-    if (!token) return res.status(401).send({ message: 'Unauthorized access token not found' });
+    if (!token) return res.status(401).send({ message: 'Unauthorized access' });
 
     jwt.verify(token, process.env.JWT_SECRET, (err, decoded) => {
         if (err) return res.status(403).send({ message: 'Forbidden' });
         req.decoded = decoded;
-        console.log('Decoded JWT:', decoded);
         next();
     });
 };
@@ -67,7 +65,7 @@ async function run() {
                 .cookie('jwtToken', token, {
                     httpOnly: true,
                     secure: process.env.NODE_ENV === 'production', // true on live
-                    sameSite: 'strict',
+                    sameSite: 'none',
                     maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
                 })
                 .send({ success: true });
@@ -78,7 +76,7 @@ async function run() {
                 .clearCookie('jwtToken', {
                     httpOnly: true,
                     secure: process.env.NODE_ENV === 'production',
-                    sameSite: 'strict',
+                    sameSite: 'none',
                 })
                 .send({ success: true });
         });
@@ -114,8 +112,7 @@ async function run() {
                 ]).toArray(); 
                 
                 return res.send(posts);
-            }
-
+            }            
             // Default case: sort by createdAt in descending order
             const posts = await postCollection.find().sort({ createdAt: -1 }).toArray();
             res.send(posts);
@@ -123,7 +120,7 @@ async function run() {
 
         app.get('/posts/search', async (req, res) => {
             const { tag } = req.query;
-            const tagSpecial = tag.trim();
+            const tagSpecial = tag?.trim();
             try {
                 const posts = await postCollection
                     .find({ tag: { $regex: new RegExp(`${tagSpecial}`, 'i') } })
