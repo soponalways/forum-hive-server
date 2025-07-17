@@ -24,7 +24,7 @@ app.use(cookieParser());
 const verifyJWT = (req, res, next) => {
     const token = req.cookies.jwtToken
     console.log('JWT Token:', token);
-    if (!token) return res.status(401).send({ message: 'Unauthorized access token not found'  });
+    if (!token) return res.status(401).send({ message: 'Unauthorized access token not found' });
 
     jwt.verify(token, process.env.JWT_SECRET, (err, decoded) => {
         if (err) return res.status(403).send({ message: 'Forbidden' });
@@ -60,7 +60,7 @@ async function run() {
 
         // 👉 Token Generation
         app.post('/auth/set-cookie', (req, res) => {
-            const user = req.body; 
+            const user = req.body;
             const token = jwt.sign(user, process.env.JWT_SECRET, { expiresIn: '7d' });
 
             res
@@ -92,16 +92,41 @@ async function run() {
 
         // Get all Posts
         app.get('/posts', async (req, res) => {
-            const posts = await postCollection.find().toArray();
-            res.send(posts || []);
+            const { sortBy, order } = req.query;
+            // if user is send sort data then it will sort by there given data . 
+            if (sortBy === 'popularity') {
+                const posts = await postCollection.aggregate([
+                    {
+                        $addFields: {
+                            voteDifference: { $subtract: ["$upVote", "$downVote"] }
+                        }
+                    },
+                    {
+                        $sort: { voteDifference: order === 'asc' ? 1 : -1 }
+                    }
+                ]).toArray(); 
+                return res.send(posts);
+            } else if (sortBy === 'date') {
+                const posts = await postCollection.aggregate([
+                    {
+                        $sort: { createdAt: order === 'asc' ? 1 : -1 }
+                    }
+                ]).toArray(); 
+                
+                return res.send(posts);
+            }
+
+            // Default case: sort by createdAt in descending order
+            const posts = await postCollection.find().sort({ createdAt: -1 }).toArray();
+            res.send(posts);
         });
-        
+
         app.get('/posts/search', async (req, res) => {
             const { tag } = req.query;
-            const tagSpecial = tag.trim(); 
+            const tagSpecial = tag.trim();
             try {
                 const posts = await postCollection
-                    .find({ tag: { $regex: new RegExp(`^${tagSpecial}$`, 'i') } })
+                    .find({ tag: { $regex: new RegExp(`${tagSpecial}`, 'i') } })
                     .sort({ createdAt: -1 })
                     .toArray();
 
@@ -116,10 +141,10 @@ async function run() {
         app.post('/users', async (req, res) => {
             const userData = req.body;
             const emailExists = await userCollection.findOne({ email: userData?.email });
- 
+
             // Check if username already exists
             const usernameExists = await userCollection.findOne({ username: userData?.username });
-            if (usernameExists) {   
+            if (usernameExists) {
                 return res.status(409).send({ error: 'Username already exists' });
             }
 
@@ -134,9 +159,9 @@ async function run() {
                     await userCollection.updateOne({ email: userData.email }, updatedUserDoc);
                 } catch (error) {
                     console.error('Error checking email existence:', error);
-                    
+
                 }
-                return res.status(200).send({ message : 'Email already exists' });
+                return res.status(200).send({ message: 'Email already exists' });
             } else {
                 try {
                     const newUserData = {
@@ -167,7 +192,7 @@ async function run() {
         });
 
         // GET /posts/user/:email
-        app.get('/posts/user/:email' , verifyJWT , async (req, res) => {
+        app.get('/posts/user/:email', verifyJWT, async (req, res) => {
             const decodedEmail = req.decoded.email;
             const email = req.params.email;
 
@@ -190,7 +215,7 @@ async function run() {
 
             // Check post limit
             const postCount = await postCollection.countDocuments({ authorEmail: decodedEmail });
-            
+
             const member = await userCollection.findOne({ email: decodedEmail });
             if (!member) {
                 return res.status(403).send({ message: 'Forbidden: user not found' });
@@ -203,11 +228,11 @@ async function run() {
                 if (postCount > 5) {
                     return res.status(403).send({ message: 'Post limit exceeded' });
                 }
-            }          
+            }
 
             const result = await postCollection.insertOne(postData);
             const updatedDoc = {
-                $inc : {postLimit: -1}
+                $inc: { postLimit: -1 }
             }
             await userCollection.updateOne({ email: decodedEmail }, updatedDoc);
             res.send(result);
@@ -218,7 +243,7 @@ async function run() {
             const postId = req.params.id;
             const decodedEmail = req.decoded.email;
 
-            const query = { _id: new ObjectId(postId) }; 
+            const query = { _id: new ObjectId(postId) };
             const post = await postCollection.findOne(query);
             if (!post) {
                 return res.status(404).send({ message: 'Post not found' });
@@ -228,7 +253,7 @@ async function run() {
                 return res.status(403).send({ message: 'Forbidden: email mismatch' });
             }
 
-            const result =  await postCollection.deleteOne({ _id: new ObjectId(postId) });
+            const result = await postCollection.deleteOne({ _id: new ObjectId(postId) });
             await userCollection.updateOne({ email: decodedEmail }, { $inc: { postLimit: 1 } });
             res.send({ success: true, message: 'Post deleted successfully', ...result });
         });
