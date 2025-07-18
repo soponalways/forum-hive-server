@@ -46,6 +46,7 @@ const client = new MongoClient(uri, {
 // ✅ Declare userCollection globally
 let userCollection;
 let postCollection;
+let commentsCollection; 
 
 async function run() {
     try {
@@ -53,6 +54,7 @@ async function run() {
         const db = client.db("forumHiveDB");
         userCollection = db.collection("users");
         postCollection = db.collection("posts");
+        commentsCollection = db.collection('comments')
 
         console.log("✅ MongoDB connected");
 
@@ -88,9 +90,27 @@ async function run() {
             res.send({ exists: !!user });
         });
 
+        // Get single Post By PostId 
+        app.get('/post/:id', async (req, res) => {
+            try {
+                const id = req.params.id;
+                const post = await postCollection.findOne({ _id: new ObjectId(id) });
+
+                if (!post) {
+                    return res.status(404).send({ message: 'Post not found' });
+                }
+                res.send(post)
+            } catch (error) {
+                res.status(500).send({ message: 'Internal Server Error', error: error.message });
+            }
+        })
+        
         // Get all Posts
         app.get('/posts', async (req, res) => {
-            const { sortBy, order } = req.query;
+            const { sortBy, order, current, limit:limitStr } = req.query;
+            const skip = parseInt(current) * 5; 
+            const limit = parseInt(limitStr) 
+            
             // if user is send sort data then it will sort by there given data . 
             if (sortBy === 'popularity') {
                 const posts = await postCollection.aggregate([
@@ -101,30 +121,50 @@ async function run() {
                     },
                     {
                         $sort: { voteDifference: order === 'asc' ? 1 : -1 }
-                    }
-                ]).toArray(); 
+                    }, 
+                ])
+                .skip(skip)
+                .limit(limit)
+                .toArray(); 
                 return res.send(posts);
             } else if (sortBy === 'date') {
                 const posts = await postCollection.aggregate([
                     {
                         $sort: { createdAt: order === 'asc' ? 1 : -1 }
                     }
-                ]).toArray(); 
+                ])
+                    .skip(skip)
+                    .limit(limit)
+                    .toArray(); 
                 
                 return res.send(posts);
             }            
             // Default case: sort by createdAt in descending order
-            const posts = await postCollection.find().sort({ createdAt: -1 }).toArray();
+            const posts = await postCollection.find().sort({ createdAt: -1 }).skip(skip).limit(limit).toArray();
             res.send(posts);
         });
 
+        app.get('/posts/count', async (req, res) => {
+            
+            try {
+                const count = await postCollection.countDocuments();
+                res.send({ count });
+            } catch (error) {
+                res.status(500).send({ error: 'Failed to get post count' });
+            }
+        })
+
         app.get('/posts/search', async (req, res) => {
-            const { tag } = req.query;
+            const { tag, limit: limitStr, current } = req.query;
             const tagSpecial = tag?.trim();
+            const skip = parseInt(current) * 5;
+            const limit = parseInt(limitStr) 
             try {
                 const posts = await postCollection
                     .find({ tag: { $regex: new RegExp(`${tagSpecial}`, 'i') } })
                     .sort({ createdAt: -1 })
+                    .skip(skip)
+                    .limit(limit)
                     .toArray();
 
                 res.json(posts);
@@ -133,6 +173,20 @@ async function run() {
                 res.status(500).json({ message: 'Failed to fetch search results' });
             }
         });
+
+        // Comments 
+        app.post('/post/comment', async (req, res) => {
+            const { postId:postIdStr , ...restData} = req.body; 
+            const postId = new ObjectId(postIdStr); 
+            const createdAt = new Date
+            const commentData = {
+                postId,
+                ...restData, 
+                createdAt
+            }
+            const result = await commentsCollection.insertOne(commentData); 
+            res.status(201).send(result); 
+        })
 
         // 👉 Save new user
         app.post('/users', async (req, res) => {
