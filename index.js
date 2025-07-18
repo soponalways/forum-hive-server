@@ -175,6 +175,16 @@ async function run() {
         });
 
         // Comments 
+        app.get('/comment/:postId', async (req, res) => {
+            const {postId} = req.params; 
+            const query = {postId : new ObjectId(postId)}; 
+            const cursor = await commentsCollection.find(query);
+            const comments = await cursor
+                .sort({ createdAt : -1})
+            .toArray(); 
+
+            res.send(comments)
+        })
         app.post('/post/comment', async (req, res) => {
             const { postId:postIdStr , ...restData} = req.body; 
             const postId = new ObjectId(postIdStr); 
@@ -188,6 +198,27 @@ async function run() {
             res.status(201).send(result); 
         })
 
+        // LIke Post 
+        app.patch('/post/vote/:postId', async (req, res) => {
+            const {postId} = req.params; 
+            const {type} = req.body; 
+            const query = {_id : new ObjectId(postId)}
+            if(type === 'up') {
+                const data = {
+                    $inc : {upVote: 1}
+                }
+                 const result = await postCollection.updateOne(query, data)
+                 return res.send(result)
+            }
+            if(type === 'down') {
+                const data = {
+                    $inc: { downVote: 1 }
+                }
+                const result = await postCollection.updateOne(query, data)
+                return res.send(result)
+            }
+        })
+        
         // 👉 Save new user
         app.post('/users', async (req, res) => {
             const userData = req.body;
@@ -195,8 +226,8 @@ async function run() {
 
             // Check if username already exists
             const usernameExists = await userCollection.findOne({ username: userData?.username });
-            if (usernameExists) {
-                return res.status(409).send({ error: 'Username already exists' });
+            if (!emailExists && usernameExists) {
+                return res.status(200).send({ error: 'Username already exists' });
             }
 
             if (emailExists) {
