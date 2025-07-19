@@ -21,19 +21,6 @@ app.use(cors({
 app.use(express.json());
 app.use(cookieParser());
 
-// Coustome middleware 
-const verifyJWT = (req, res, next) => {
-    const token = req.cookies.jwtToken
-    if (!token) return res.status(401).send({ message: 'Unauthorized access' });
-
-    jwt.verify(token, process.env.JWT_SECRET, (err, decoded) => {
-        if (err) return res.status(403).send({ message: 'Forbidden' });
-        req.decoded = decoded;
-        next();
-    });
-};
-
-
 // ✅ MongoDB Connection
 const uri = process.env.MONGODB_URI;
 const client = new MongoClient(uri, {
@@ -60,6 +47,38 @@ async function run() {
         paymentCollection = db.collection('payments')
 
         console.log("✅ MongoDB connected");
+
+        // Coustome middleware 
+        const verifyJWT = (req, res, next) => {
+            const token = req.cookies.jwtToken
+            if (!token) return res.status(401).send({ message: 'Unauthorized access' });
+
+            jwt.verify(token, process.env.JWT_SECRET, (err, decoded) => {
+                if (err) return res.status(403).send({ message: 'Forbidden' });
+                req.decoded = decoded;
+                next();
+            });
+        };
+
+        const verifyAdmin = async (req, res, next) => {
+            try {
+                const email = req.decoded?.email;
+                if (!email) {
+                    return res.status(401).json({ message: 'Unauthorized access' });
+                }
+
+                const user = await userCollection.findOne({ email });
+
+                if (!user || user.role !== 'admin') {
+                    return res.status(403).json({ message: 'Admin access only' });
+                }
+
+                next();
+            } catch (err) {
+                console.error('Admin check failed:', err.message);
+                res.status(500).json({ message: 'Internal server error' });
+            }
+        }
 
         // 👉 Token Generation
         app.post('/auth/set-cookie', (req, res) => {
@@ -390,6 +409,58 @@ async function run() {
             }
             await userCollection.updateOne({ email}, updatedDoc); 
             res.send(result)
+        }); 
+
+        // Admin related Route 
+        app.get('/role', async (req, res) => {
+            try {
+                const email = req.query.email; 
+
+                if (!email) {
+                    return res.status(400).json({ error: 'Email is required' });
+                }
+
+                const user = await userCollection.findOne({ email });
+
+                if (!user) {
+                    return res.status(404).json({ error: 'User not found' });
+                }
+
+                res.json({ role: user.role });
+            } catch (error) {
+                console.error('Error fetching user role:', error);
+                res.status(500).json({ error: 'Internal Server Error' });
+            }
+        }); 
+
+        app.get('/admin/users',verifyJWT, verifyAdmin,  async (req, res) => {
+            const search = req.query.search || '';
+            const query = {
+                $or: [
+                    { username: { $regex: search, $options: 'i' } },
+                    { email: { $regex: search, $options: 'i' } }
+                ]
+            };
+
+            try {
+                const users = await userCollection.find(query).toArray();
+                res.send(users);
+            } catch (error) {
+                res.status(500).send({ error: 'Failed to fetch users' });
+            }
+        }); 
+
+        app.patch('/makeAdmin/:id', verifyJWT, verifyAdmin, async (req, res) => {
+            const id = req.params.id;
+            try {
+                const result = await userCollection.updateOne(
+                    { _id: new ObjectId(id) },
+                    { $set: { role: 'admin' } }
+                );
+                res.send(result);
+            } catch (error) {
+                res.status(500).send({ error: 'Failed to make admin' });
+            }
         })
 
         // Root route
