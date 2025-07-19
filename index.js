@@ -280,15 +280,27 @@ async function run() {
         app.get('/posts/user/:email', verifyJWT, async (req, res) => {
             const decodedEmail = req.decoded.email;
             const email = req.params.email;
-
+            let limit = req.query.limit; 
+            limit = parseInt(limit)
+            
             if (decodedEmail !== email) {
                 return res.status(403).send({ message: 'Forbidden: email mismatch' });
+            }; 
+
+            if(limit) {
+                const posts = await postCollection.find({ authorEmail: email }).limit(limit).sort({ createdAt : -1}).toArray();
+                return res.send(posts)
             }
 
             const posts = await postCollection.find({ authorEmail: email }).toArray();
             res.send(posts);
-        })
+        }); 
 
+        app.get('/user/:email', async (req, res) => {
+            const {email} = req.params; 
+            const user = await userCollection.findOne({email}); 
+            res.send(user)
+        })
         // POST /posts
         app.post('/posts', verifyJWT, async (req, res) => {
             const postData = req.body;
@@ -371,6 +383,9 @@ async function run() {
                 }, 
                 $inc : {
                     postLimit : 5
+                }, 
+                $addToSet : {
+                    badges : 'Gold'
                 }
             }
             await userCollection.updateOne({ email}, updatedDoc); 
