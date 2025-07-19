@@ -5,6 +5,7 @@ const { MongoClient, ServerApiVersion, ObjectId } = require('mongodb');
 require('dotenv').config();
 const jwt = require('jsonwebtoken');
 const cookieParser = require('cookie-parser');
+const stripe = require('stripe')(process.env.STRIPE_SECRETE); 
 
 // ✅ Setup Express
 const app = express();
@@ -47,6 +48,7 @@ const client = new MongoClient(uri, {
 let userCollection;
 let postCollection;
 let commentsCollection; 
+let paymentCollection; 
 
 async function run() {
     try {
@@ -54,7 +56,8 @@ async function run() {
         const db = client.db("forumHiveDB");
         userCollection = db.collection("users");
         postCollection = db.collection("posts");
-        commentsCollection = db.collection('comments')
+        commentsCollection = db.collection('comments');
+        paymentCollection = db.collection('payments')
 
         console.log("✅ MongoDB connected");
 
@@ -339,6 +342,40 @@ async function run() {
             await userCollection.updateOne({ email: decodedEmail }, { $inc: { postLimit: 1 } });
             res.send({ success: true, message: 'Post deleted successfully', ...result });
         });
+
+        // Accept Payment 
+        app.post('/create-payment-intent', async (req, res) => {
+            const { amount} = req.body; 
+            const amountInSent = amount * 100 ; 
+            try {
+                const paymentIntent = await stripe.paymentIntents.create({
+                    amount: amountInSent,
+                    currency: 'usd',
+                });
+                return res.send({ client_secret: paymentIntent.client_secret })
+            } catch (error) {
+                return res.status(500).json({ error: error.message });
+            }
+        })
+
+        app.post('/membership', async (req, res) => {
+            const {email , ...paymentRest} = req.body; 
+            const paymentData = {
+                ...paymentRest, 
+                email
+            }
+            const result = await paymentCollection.insertOne(paymentData); 
+            const updatedDoc = {
+                $set: {
+                    memberShip: 'member'
+                }, 
+                $inc : {
+                    postLimit : 5
+                }
+            }
+            await userCollection.updateOne({ email}, updatedDoc); 
+            res.send(result)
+        })
 
         // Root route
         app.get('/', (req, res) => {
