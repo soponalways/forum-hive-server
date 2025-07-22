@@ -364,11 +364,19 @@ async function run() {
             res.send(result)
         }); 
 
-        app.get('/reports',verifyJWT, verifyAdmin, async (req, res) => {
-            const cursor = await reportsCollection.find(); 
-            const result = await cursor.sort({createdAt: -1}).toArray(); 
-            res.send(result); 
-        })
+
+        app.get('/reports', verifyJWT, verifyAdmin, async (req, res) => {
+            const filter = {
+                $nor: [
+                    { isBlocked: true },
+                    { warning: true },
+                    { status: 'resolved' }
+                ]
+            };
+            const cursor = await reportsCollection.find(filter);
+            const result = await cursor.sort({ createdAt: -1 }).toArray();
+            res.send(result);
+        });
         app.post('/reports', async (req, res) => {
             const { commentId, ...restReportsData } = req.body;
             const reportsData = {
@@ -395,6 +403,7 @@ async function run() {
                 await reportsCollection.updateOne(reportFilter, { $set: { status: 'resolved' } });
             } else if (action === 'warn') {
                 await userCollection.updateOne({ email: userEmail }, { $set: { warning: true } });
+                await reportsCollection.updateOne(reportFilter, { $set: { status: 'resolved' } });
             } else if (action === 'delete-comment') {
                 const query = { _id: new ObjectId(commentId) }
                 const result = await commentsCollection.deleteOne(query);
@@ -402,6 +411,7 @@ async function run() {
                 const reportDeleteResult = await reportsCollection.deleteOne(reportDeleteQuery); 
             } else if (action === 'block') {
                 await userCollection.updateOne({ email: userEmail }, { $set: { isBlocked: true } });
+                await reportsCollection.updateOne(reportFilter, { $set: { status: 'resolved' } });
             }
 
             res.send({ modifiedCount: 1 });
