@@ -37,6 +37,7 @@ let postCollection;
 let commentsCollection; 
 let paymentCollection; 
 let reportsCollection;
+let announcementsCollection; 
 
 async function run() {
     try {
@@ -47,6 +48,7 @@ async function run() {
         commentsCollection = db.collection('comments');
         paymentCollection = db.collection('payments');
         reportsCollection= db.collection('reports')
+        announcementsCollection = db.collection("announcements")
 
         console.log("✅ MongoDB connected");
 
@@ -527,6 +529,20 @@ async function run() {
             }
         })
 
+        // Announcment 
+
+        app.post('/announcements',verifyJWT , verifyAdmin,  async (req, res) => {
+            const announcement = req.body;
+            announcement.createdAt = new Date();
+
+            try {
+                const result = await announcementsCollection.insertOne(announcement);
+                res.send(result);
+            } catch (error) {
+                res.status(500).send({ error: 'Failed to create announcement' });
+            }
+        });
+        
         // Root route
         app.get('/', (req, res) => {
             res.send('ForumHive server is running');
