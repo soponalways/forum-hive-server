@@ -36,6 +36,7 @@ let userCollection;
 let postCollection;
 let commentsCollection; 
 let paymentCollection; 
+let reportsCollection;
 
 async function run() {
     try {
@@ -44,7 +45,8 @@ async function run() {
         userCollection = db.collection("users");
         postCollection = db.collection("posts");
         commentsCollection = db.collection('comments');
-        paymentCollection = db.collection('payments')
+        paymentCollection = db.collection('payments');
+        reportsCollection= db.collection('reports')
 
         console.log("✅ MongoDB connected");
 
@@ -354,6 +356,58 @@ async function run() {
             res.send(result);
         });
 
+        // Reports related api 
+        app.get('/report/:id', async (req, res) => {
+            const {id} = req.params;
+            const query = { commentId: new ObjectId(id)}; 
+            const result = await reportsCollection.findOne(query)
+            res.send(result)
+        }); 
+
+        app.get('/reports',verifyJWT, verifyAdmin, async (req, res) => {
+            const cursor = await reportsCollection.find(); 
+            const result = await cursor.sort({createdAt: -1}).toArray(); 
+            res.send(result); 
+        })
+        app.post('/reports', async (req, res) => {
+            const { commentId, ...restReportsData } = req.body;
+            const reportsData = {
+                ...restReportsData, 
+                commentId: new ObjectId(commentId)
+            } 
+            const query = { commentId : reportsData.commentId}; 
+            const existingCommentReport = await reportsCollection.findOne(query); 
+            if(existingCommentReport) {
+                return res.send({message : "Report allready have on this comment"}); 
+            }
+            if(!reportsData) {
+                return res.send({message : "Reports Data not found"})
+            }
+            const result = await reportsCollection.insertOne(reportsData); 
+            res.send(result); 
+        }); 
+        app.patch('/reports/action', verifyJWT, verifyAdmin,  async (req, res) => {
+            const { action, reportId, userEmail, commentId } = req.body;
+
+            const reportFilter = { _id: new ObjectId(reportId) };
+
+            if (action === 'ignore') {
+                await reportsCollection.updateOne(reportFilter, { $set: { status: 'resolved' } });
+            } else if (action === 'warn') {
+                await userCollection.updateOne({ email: userEmail }, { $set: { warning: true } });
+            } else if (action === 'delete-comment') {
+                const query = { _id: new ObjectId(commentId) }
+                const result = await commentsCollection.deleteOne(query);
+                const reportDeleteQuery = {_id : new ObjectId(reportId)}; 
+                const reportDeleteResult = await reportsCollection.deleteOne(reportDeleteQuery); 
+            } else if (action === 'block') {
+                await userCollection.updateOne({ email: userEmail }, { $set: { isBlocked: true } });
+            }
+
+            res.send({ modifiedCount: 1 });
+        });
+
+        
         // DELETE /posts/:id
         app.delete('/posts/:id', verifyJWT, async (req, res) => {
             const postId = req.params.id;
