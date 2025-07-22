@@ -543,6 +543,26 @@ async function run() {
             }
         });
         
+        // Admin Stats gets
+        app.get('/admin/stats/:email' , verifyJWT, verifyAdmin, async (req, res) => {
+            if(req.decoded.email !== req.params.email) {
+                return res.status(403).send({message: 'Forbidden Access'})
+            }
+            const posts = await postCollection.countDocuments(); 
+            const comments = await commentsCollection.countDocuments(); 
+            const users = await userCollection.countDocuments(); 
+            const admin = await userCollection.findOne({email : req.params.email}); 
+            const stats = {
+                posts, 
+                comments, 
+                users, 
+                name: admin.name, 
+                email : admin.email, 
+                image: admin.image
+            }; 
+            res.send(stats)
+        })
+        
         // Root route
         app.get('/', (req, res) => {
             res.send('ForumHive server is running');
