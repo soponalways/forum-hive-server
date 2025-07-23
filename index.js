@@ -38,6 +38,7 @@ let commentsCollection;
 let paymentCollection; 
 let reportsCollection;
 let announcementsCollection; 
+let tagsCollection;
 
 async function run() {
     try {
@@ -48,7 +49,8 @@ async function run() {
         commentsCollection = db.collection('comments');
         paymentCollection = db.collection('payments');
         reportsCollection= db.collection('reports')
-        announcementsCollection = db.collection("announcements")
+        announcementsCollection = db.collection("announcements"); 
+        tagsCollection = db.collection("tags"); 
 
         console.log("✅ MongoDB connected");
 
@@ -561,6 +563,22 @@ async function run() {
                 image: admin.image
             }; 
             res.send(stats)
+        }); 
+
+        // Tags Route 
+        app.get('/tags', async (req, res) => {
+            const tagsResult = await tagsCollection.find().sort({createdAt : -1}).toArray();
+            res.send(tagsResult); 
+        }); 
+        app.post('/tag', verifyJWT , verifyAdmin,  async (req, res) => {
+            try {
+                const tag = req.body;
+                tag.createdAt = new Date();
+                const result = await tagsCollection.insertOne(tag);
+                res.status(201).send(result); 
+            } catch (error) {
+                res.send(error)
+            }
         })
         
         // Root route
