@@ -245,6 +245,21 @@ async function run() {
                 const result = await postCollection.updateOne(query, data)
                 return res.send(result)
             }
+        }); 
+
+        // Get the Membership Status 
+        app.get('/membershipStatus/:email', async (req, res) => {
+            const {email} = req.params; 
+            try {
+                const query = {email}; 
+                const options = { 
+                    projection: { memberShip: 1, postLimit: 1, _id: 0 }
+                }
+                const data = await userCollection.findOne(query , options); 
+                res.send(data)
+            } catch (error) {
+                return res.status(500).send(error.message)
+            }
         })
         
         // 👉 Save new user
@@ -532,7 +547,21 @@ async function run() {
         })
 
         // Announcment 
+        
+        app.get('/announcements', async (req , res) => {
+            try {
+                const cursor = await announcementsCollection.find().sort({ createdAt: -1 });
+                const result = await cursor.toArray();
+                return res.send(result);
+            } catch (error) {
+                return res.status(500).send(error.message); 
+            }
+        }); 
 
+        app.get('/announcements/count', async (req, res) => {
+            const countResult = await announcementsCollection.countDocuments(); 
+            res.send({count : countResult}); 
+        })
         app.post('/announcements',verifyJWT , verifyAdmin,  async (req, res) => {
             const announcement = req.body;
             announcement.createdAt = new Date();
