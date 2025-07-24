@@ -518,6 +518,10 @@ async function run() {
 
         app.get('/admin/users',verifyJWT, verifyAdmin,  async (req, res) => {
             const search = req.query.search || '';
+            const pageStr = req.query.page; 
+            const page = parseInt(pageStr); 
+            const limit = 10; // Default limit 
+            const skip = page * limit ; 
             const query = {
                 $or: [
                     { username: { $regex: search, $options: 'i' } },
@@ -526,8 +530,19 @@ async function run() {
             };
 
             try {
-                const users = await userCollection.find(query).toArray();
-                res.send(users);
+                if (pageStr) {
+                    const users = await userCollection
+                        .find(query)
+                        .skip(skip)
+                        .limit(skip + limit)
+                        .toArray();
+                    return res.send(users);
+                } else if (!pageStr) {
+                    const users = await userCollection
+                        .find(query)
+                        .toArray();
+                    return res.send(users);
+                }
             } catch (error) {
                 res.status(500).send({ error: 'Failed to fetch users' });
             }
