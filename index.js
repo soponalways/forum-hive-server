@@ -407,6 +407,9 @@ async function run() {
 
 
         app.get('/reports', verifyJWT, verifyAdmin, async (req, res) => {
+            const page = parseInt(req.query.page) || 0;
+            const limit = parseInt(req.query.limit) || 10;
+            const skip = page * limit;
             const filter = {
                 $nor: [
                     { isBlocked: true },
@@ -415,8 +418,24 @@ async function run() {
                 ]
             };
             const cursor = await reportsCollection.find(filter);
-            const result = await cursor.sort({ createdAt: -1 }).toArray();
+            const result = await cursor.sort({ createdAt: -1 }).skip(skip).limit(limit).toArray();
             res.send(result);
+        });
+        // GET /reports/count
+        app.get('/reports/count', async (req, res) => {
+            try {
+                const filter = {
+                    $nor: [
+                        { isBlocked: true },
+                        { warning: true },
+                        { status: 'resolved' }
+                    ]
+                };
+                const count = await db.collection('reports').countDocuments(filter);
+                res.send({ count });
+            } catch (error) {
+                res.status(500).send({ error: error.message });
+            }
         });
         app.post('/reports', async (req, res) => {
             const { commentId, ...restReportsData } = req.body;
