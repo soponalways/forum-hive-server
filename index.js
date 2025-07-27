@@ -135,12 +135,12 @@ async function run() {
         
         // Get all Posts
         app.get('/posts', async (req, res) => {
-            const { sortBy, order, current, limit:limitStr } = req.query;
+            const { sort, current, limit:limitStr } = req.query;
             const skip = parseInt(current) * 5; 
             const limit = parseInt(limitStr) 
             
             // if user is send sort data then it will sort by there given data . 
-            if (sortBy === 'popularity') {
+            if (sort === 'true') {
                 const posts = await postCollection.aggregate([
                     {
                         $addFields: {
@@ -148,33 +148,29 @@ async function run() {
                         }
                     },
                     {
-                        $sort: { voteDifference: order === 'asc' ? 1 : -1 }
+                        $sort: { voteDifference: -1 }
                     }, 
                 ])
                 .skip(skip)
                 .limit(limit)
                 .toArray(); 
                 return res.send(posts);
-            } else if (sortBy === 'date') {
-                const posts = await postCollection.aggregate([
-                    {
-                        $sort: { createdAt: order === 'asc' ? 1 : -1 }
-                    }
-                ])
-                    .skip(skip)
-                    .limit(limit)
-                    .toArray(); 
-                
-                return res.send(posts);
-            }            
+            }       
             // Default case: sort by createdAt in descending order
             const posts = await postCollection.find().sort({ createdAt: -1 }).skip(skip).limit(limit).toArray();
             res.send(posts);
         });
 
         app.get('/posts/count', async (req, res) => {
-            
+            const {search: tag} = req.query; 
+            const tagSpecial = tag?.trim(); 
             try {
+                if(tagSpecial) {
+                    const count = await postCollection.countDocuments({
+                        tag: { $regex: new RegExp(`${tagSpecial}`, 'i') }
+                    });
+                    return res.send({count})
+                }
                 const count = await postCollection.countDocuments();
                 res.send({ count });
             } catch (error) {
@@ -183,19 +179,45 @@ async function run() {
         })
 
         app.get('/posts/search', async (req, res) => {
-            const { tag, limit: limitStr, current } = req.query;
+            const { tag, limit: limitStr, current, sort } = req.query;
             const tagSpecial = tag?.trim();
             const skip = parseInt(current) * 5;
             const limit = parseInt(limitStr) 
             try {
-                const posts = await postCollection
-                    .find({ tag: { $regex: new RegExp(`${tagSpecial}`, 'i') } })
-                    .sort({ createdAt: -1 })
-                    .skip(skip)
-                    .limit(limit)
-                    .toArray();
+                // if user is send sort data then it will sort by there given data . 
+                if (sort === 'true') {
+                    const posts = await postCollection.aggregate([
+                        {
+                            $match: {
+                                tag: { $regex: new RegExp(`${tagSpecial}`, 'i') }
+                            }
+                        },
+                        {
+                            $addFields: {
+                                voteDifference: { $subtract: ["$upVote", "$downVote"] }
+                            }
+                        },
+                        {
+                            $sort: { voteDifference: -1 }
+                        },
+                    ])
+                        .skip(skip)
+                        .limit(limit)
+                        .toArray();
+                    return res.send(posts);
+                }   
+                else {
+                    const posts = await postCollection
+                        .find({ tag: { $regex: new RegExp(`${tagSpecial}`, 'i') } })
+                        .sort({ createdAt: -1 })
+                        .skip(skip)
+                        .limit(limit)
+                        .toArray();
 
-                res.json(posts);
+                    res.json(posts);
+                }  
+                // Deafult case 
+                
             } catch (error) {
                 console.error('Search Error:', error);
                 res.status(500).json({ message: 'Failed to fetch search results' });
