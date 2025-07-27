@@ -39,6 +39,7 @@ let paymentCollection;
 let reportsCollection;
 let announcementsCollection; 
 let tagsCollection;
+let popularTagsCollection; 
 
 async function run() {
     try {
@@ -51,6 +52,7 @@ async function run() {
         reportsCollection= db.collection('reports')
         announcementsCollection = db.collection("announcements"); 
         tagsCollection = db.collection("tags"); 
+        popularTagsCollection= db.collection("popularTags")
 
         console.log("✅ MongoDB connected");
 
@@ -183,6 +185,25 @@ async function run() {
             const tagSpecial = tag?.trim();
             const skip = parseInt(current) * 5;
             const limit = parseInt(limitStr) 
+            try {
+                if(tag !== ""){
+                    const popularTags = await popularTagsCollection.findOne({ value: tag });
+                    if (popularTags) {
+                        await popularTagsCollection.updateOne(
+                            { value: tag },
+                            { $inc: { count: 1 }, $set: { updatedAt: new Date() } },
+                            { upsert: false }
+                        )
+                    } else {
+                        await popularTagsCollection.updateOne(
+                            { value: tag },
+                            { $set: { value: tag, count: 1, createdAt: new Date(), updatedAt: new Date() } },
+                            { upsert: true })
+                    }
+                }
+            } catch (error) {
+                
+            }
             try {
                 // if user is send sort data then it will sort by there given data . 
                 if (sort === 'true') {
@@ -512,6 +533,31 @@ async function run() {
                 return res.status(500).json({ error: error.message });
             }
         })
+
+        app.get('/tags/popular', async (req, res) => {
+            try {
+                const limit = parseInt(req.query.limit) || 3;
+
+                const popularTags = await popularTagsCollection
+                    .find({})
+                    .sort({ count: -1 })
+                    .limit(limit)
+                    .toArray();
+
+                res.json({
+                    success: true,
+                    data: popularTags
+                });
+
+            } catch (error) {
+                console.error('Error fetching popular tags:', error);
+                res.status(500).json({
+                    success: false,
+                    message: 'Error fetching popular tags',
+                    error: error.message
+                });
+            }
+        });
 
         app.post('/membership', async (req, res) => {
             const {email , ...paymentRest} = req.body; 
