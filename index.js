@@ -40,6 +40,7 @@ let reportsCollection;
 let announcementsCollection; 
 let tagsCollection;
 let popularTagsCollection; 
+let faqsCollection; 
 
 async function run() {
     try {
@@ -52,7 +53,8 @@ async function run() {
         reportsCollection= db.collection('reports')
         announcementsCollection = db.collection("announcements"); 
         tagsCollection = db.collection("tags"); 
-        popularTagsCollection= db.collection("popularTags")
+        popularTagsCollection= db.collection("popularTags"); 
+        faqsCollection = db.collection("faqs");
 
         console.log("✅ MongoDB connected");
 
@@ -589,6 +591,16 @@ async function run() {
             await userCollection.updateOne({ email}, updatedDoc); 
             res.send(result)
         }); 
+
+        app.get('/faqs', async (req, res) => {
+            try {
+                const faqs = await faqsCollection.find().toArray();
+                res.json(faqs);
+            } catch (error) {
+                console.error('Error fetching FAQs:', error);
+                res.status(500).json({ error: 'Internal Server Error' });
+            }
+        });
 
         // Admin related Route 
         app.get('/role', async (req, res) => {
