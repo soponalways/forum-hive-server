@@ -163,6 +163,15 @@ async function run() {
             res.send(posts);
         });
 
+        app.get('/latestPosts' , async (req, res) => {
+            try {
+                const posts = await postCollection.find().sort({ createdAt: -1 }).limit(6).toArray();
+                res.send(posts);
+            } catch (error) {
+                res.status(500).send({ message: 'Failed to fetch latest posts' });
+            }
+        });
+
         app.get('/posts/count', async (req, res) => {
             const {search: tag} = req.query; 
             const tagSpecial = tag?.trim(); 
