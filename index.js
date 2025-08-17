@@ -42,6 +42,7 @@ let tagsCollection;
 let popularTagsCollection; 
 let faqsCollection; 
 let newsletterCollection; 
+let testimonialsCollection; 
 
 async function run() {
     try {
@@ -57,6 +58,7 @@ async function run() {
         popularTagsCollection= db.collection("popularTags"); 
         faqsCollection = db.collection("faqs");
         newsletterCollection = db.collection("newsletter");
+        testimonialsCollection = db.collection("testimonials");
 
         console.log("✅ MongoDB connected");
 
@@ -614,6 +616,17 @@ async function run() {
                 const result = await newsletterCollection.insertOne(req.body);
                 res.status(201).send({message : "You have successfully subscribed to our newsletter", data: result});
             } catch (error) {
+                res.status(500).send({ message: 'Internal Server Error' });
+            }
+        });
+
+        // Testimonials Api 
+        app.get('/testimonials', async (req, res) => {
+            try {
+                const testimonials = await testimonialsCollection.find().sort({ createdAt: -1 }).toArray();
+                res.send(testimonials);
+            } catch (error) {
+                console.error('Error fetching testimonials:', error);
                 res.status(500).send({ message: 'Internal Server Error' });
             }
         });
