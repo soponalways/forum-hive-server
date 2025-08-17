@@ -41,6 +41,7 @@ let announcementsCollection;
 let tagsCollection;
 let popularTagsCollection; 
 let faqsCollection; 
+let newsletterCollection; 
 
 async function run() {
     try {
@@ -55,6 +56,7 @@ async function run() {
         tagsCollection = db.collection("tags"); 
         popularTagsCollection= db.collection("popularTags"); 
         faqsCollection = db.collection("faqs");
+        newsletterCollection = db.collection("newsletter");
 
         console.log("✅ MongoDB connected");
 
@@ -599,6 +601,20 @@ async function run() {
             } catch (error) {
                 console.error('Error fetching FAQs:', error);
                 res.status(500).json({ error: 'Internal Server Error' });
+            }
+        });
+
+        // Newsletter api 
+        app.post('/newsletter', async (req, res) => {
+            try {
+                const exist = await newsletterCollection.findOne({ email: req.body.email });
+                if (exist) {
+                    return res.send({ message: 'Email already subscribed' });
+                }
+                const result = await newsletterCollection.insertOne(req.body);
+                res.status(201).send({message : "You have successfully subscribed to our newsletter", data: result});
+            } catch (error) {
+                res.status(500).send({ message: 'Internal Server Error' });
             }
         });
 
