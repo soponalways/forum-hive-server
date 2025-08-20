@@ -126,6 +126,20 @@ async function run() {
             res.send({ exists: !!user });
         });
 
+        // Get single user By email address
+        app.get("/userdata/:email", async (req, res) => {
+            try {
+                const { email } = req.params;
+                const result = await userCollection.findOne({ email });
+                if(!result) {
+                    return res.send({ message: `No User Data Found on this email ${email}`, email})
+                }
+                res.send(result); 
+            } catch (error) {
+                res.status(500).send({message: "Server Error"})
+            }
+        } )
+
         // Get single Post By PostId 
         app.get('/post/:id', async (req, res) => {
             try {
