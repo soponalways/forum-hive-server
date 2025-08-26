@@ -373,6 +373,21 @@ async function run() {
             }
         });
 
+        app.patch('/user/update/:email', async (req, res) => {
+            const {email} = req.params; 
+            const data = req.body; 
+            console.log("call true")
+            try {
+                const updateDoc = {
+                    $set: data
+                }; 
+                const result = await userCollection.updateOne({email}, updateDoc); 
+                res.send(result); 
+            } catch (error) {
+                res.status(500).send({message: "Server Error"})
+            }
+        })
+        
         // Post realted route 
 
         // GET /posts/user/:email/count
