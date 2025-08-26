@@ -334,6 +334,10 @@ async function run() {
             }
         })
         
+        app.get("/leaderboard", async (req, res) => {
+            const users = await userCollection.find().limit(10).sort({ createdAt: -1}).toArray();
+            res.send(users)
+        })
         // 👉 Save new user
         app.post('/users', async (req, res) => {
             const userData = req.body;
