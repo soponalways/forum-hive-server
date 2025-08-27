@@ -126,6 +126,20 @@ async function run() {
             res.send({ exists: !!user });
         });
 
+        // Get single user By email address
+        app.get("/userdata/:email", async (req, res) => {
+            try {
+                const { email } = req.params;
+                const result = await userCollection.findOne({ email });
+                if(!result) {
+                    return res.send({ message: `No User Data Found on this email ${email}`, email})
+                }
+                res.send(result); 
+            } catch (error) {
+                res.status(500).send({message: "Server Error"})
+            }
+        } )
+
         // Get single Post By PostId 
         app.get('/post/:id', async (req, res) => {
             try {
@@ -320,6 +334,10 @@ async function run() {
             }
         })
         
+        app.get("/leaderboard", async (req, res) => {
+            const users = await userCollection.find().limit(10).sort({ createdAt: -1}).toArray();
+            res.send(users)
+        })
         // 👉 Save new user
         app.post('/users', async (req, res) => {
             const userData = req.body;
@@ -359,6 +377,21 @@ async function run() {
             }
         });
 
+        app.patch('/user/update/:email', async (req, res) => {
+            const {email} = req.params; 
+            const data = req.body; 
+            console.log("call true")
+            try {
+                const updateDoc = {
+                    $set: data
+                }; 
+                const result = await userCollection.updateOne({email}, updateDoc); 
+                res.send(result); 
+            } catch (error) {
+                res.status(500).send({message: "Server Error"})
+            }
+        })
+        
         // Post realted route 
 
         // GET /posts/user/:email/count
